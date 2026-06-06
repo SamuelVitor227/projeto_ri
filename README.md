@@ -8,7 +8,7 @@ oferece uma **busca web** com ranqueamento por **TF-IDF**.
 
 ```
 output_leis/  ──[indexador.py]──>  indice_projetos_lei.json  ──[buscador_web.py]──>  busca web
- (50k HTMLs)                            (~164 MB, baixar do Drive)
+ (50k HTMLs)                            (~164 MB, baixar no link abaixo)
  só p/ regerar o índice                 basta isso para buscar
 ```
 
@@ -44,10 +44,10 @@ Basta o `indice_projetos_lei.json`.
    cd projeto_ri
    ```
 
-2. **Baixe o `indice_projetos_lei.json` (~164 MB) do Google Drive** e coloque-o
+2. **Baixe o `indice_projetos_lei.json` (~164 MB) da página de releases** e coloque-o
    **na mesma pasta** do projeto (mesmo nível do `buscador_web.py`):
 
-   👉 https://drive.google.com/drive/folders/16D8lQeqwcW0Tswjb8h75HPiZx-H58MNe
+   👉 https://github.com/SamuelVitor227/projeto_ri/releases/latest/download/indice_projetos_lei.json
 
    > O índice **não** está no repositório por causa do tamanho (~164 MB). Sem o
    > arquivo na pasta, o buscador avisa que não encontrou o índice e a busca não
@@ -105,5 +105,5 @@ partir dos HTMLs originais.
 |---|---|
 | `buscador_web.py` | Interface web de busca (Flask + TF-IDF) |
 | `indexador.py` | Gera o índice invertido a partir dos HTMLs |
-| `indice_projetos_lei.json` | Índice invertido (~164 MB) — **não versionado**, baixar do Google Drive |
+| `indice_projetos_lei.json` | Índice invertido (~164 MB) — **não versionado**, baixar na [página de releases](https://github.com/SamuelVitor227/projeto_ri/releases/latest) |
 | `output_leis/` | HTMLs originais — **não versionado**, baixar do Google Drive |
