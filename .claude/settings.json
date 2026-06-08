@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh auth status)",
+      "Read(//c/Users/sgame/OneDrive/�rea de Trabalho/Projeto RI/crawler/**)",
+      "Read(//c/Users/sgame/OneDrive/�rea de Trabalho/**)",
+      "PowerShell(gh repo create SamuelVitor227/projeto_ri --public --description \"Sistema de Recupera��o de Informa��o sobre proposi��es legislativas da C�mara dos Deputados, com �ndice invertido e busca TF-IDF\" 2>&1)",
+      "PowerShell(Invoke-RestMethod -Uri \"http://localhost:5000/status\")",
+      "PowerShell(Stop-Process -Name \"python\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Start-Process \"http://localhost:5000\")"
+    ]
+  }
+}

@@ -17,6 +17,7 @@ import math
 import os
 import re
 import time
+import urllib.request
 
 import nltk
 from flask import Flask, jsonify, render_template_string, request
@@ -73,6 +74,7 @@ class MotorBusca:
         self.indice = {}
         self.N = 0
         self.idf_cache = {}
+        self.docs = {}
         self.processador = ProcessadorConsulta()
         self.carregado = False
         self.stats = {}
@@ -86,6 +88,12 @@ class MotorBusca:
         for postings in self.indice.values():
             todos_docs.update(postings.keys())
         self.N = len(todos_docs)
+
+        self.docs = {}
+        for doc_id in todos_docs:
+            m = re.search(r"(\d+)", doc_id)
+            if m:
+                self.docs[m.group(1)] = doc_id
 
         self.idf_cache = {}
         for termo, postings in self.indice.items():
@@ -238,6 +246,20 @@ HTML = """
     .search-box button:hover { background: #2472be; }
     .search-box button:disabled { background: #1a3a5c; cursor: not-allowed; }
 
+    .search-box select {
+      background: #1a2a3a;
+      border: 1px solid #1e3a5f;
+      border-radius: 8px;
+      padding: 14px 12px;
+      font-size: 14px;
+      color: #e0e6ed;
+      outline: none;
+      cursor: pointer;
+      transition: border-color .2s;
+    }
+    .search-box select:focus { border-color: #2e6da4; }
+    .search-box select:disabled { opacity: .4; cursor: not-allowed; }
+
     /* ── Stems ── */
     #stems-info {
       font-size: 12px;
@@ -370,6 +392,12 @@ HTML = """
       disabled
       onkeydown="if(event.key==='Enter') buscar()"
     />
+    <select id="top-k" disabled>
+      <option value="5">5</option>
+      <option value="10">10</option>
+      <option value="20" selected>20</option>
+      <option value="50">50</option>
+    </select>
     <button id="btn-search" onclick="buscar()" disabled>🔍 Pesquisar</button>
   </div>
 
@@ -405,6 +433,7 @@ HTML = """
         document.getElementById('status-stats').style.display = 'flex';
         document.getElementById('query-input').disabled = false;
         document.getElementById('btn-search').disabled = false;
+        document.getElementById('top-k').disabled = false;
         document.getElementById('query-input').focus();
         document.getElementById('results').innerHTML =
           '<div class="msg"><span class="emoji">✅</span>Índice pronto. Digite sua busca acima.</div>';
@@ -419,42 +448,134 @@ HTML = """
 
   verificarStatus();
 
-  // ── Busca ──────────────────────────────────────────────────────────────── //
-  async function buscar() {
-    const query = document.getElementById('query-input').value.trim();
-    if (!query) return;
-
+  // ── Helpers de UI ─────────────────────────────────────────────────────── //
+  function iniciarLoading() {
     document.getElementById('results').innerHTML = '';
     document.getElementById('results-header').innerHTML = '';
     document.getElementById('stems-info').innerHTML = '';
     document.getElementById('loading').style.display = 'block';
     document.getElementById('btn-search').disabled = true;
+  }
 
+  function pararLoading() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-search').disabled = false;
+  }
+
+  function mostrarErro(msg) {
+    document.getElementById('results').innerHTML =
+      '<div class="msg"><span class="emoji">⚠️</span>Erro: ' + msg + '</div>';
+  }
+
+  function mostrarResultadoUnico(data, label) {
+    const titulo = label || ('ID ' + data.prop_id);
+    document.getElementById('results-header').innerHTML = '<strong>Proposição encontrada</strong>';
+    const container = document.getElementById('results');
+    const card = document.createElement('a');
+    card.className = 'result-card';
+    card.href = data.url;
+    card.target = '_blank';
+    card.rel = 'noopener noreferrer';
+    card.innerHTML =
+      '<div class="rank">1</div>' +
+      '<div class="result-info">' +
+        '<div class="result-id">' + titulo + ' &nbsp;·&nbsp; ID: ' + data.prop_id + '</div>' +
+        '<div class="result-url">' + (data.ementa || data.url) + '</div>' +
+      '</div>' +
+      '<div class="result-score">' +
+        '<div class="score-value">↗</div>' +
+        '<div class="score-label">acesso direto</div>' +
+      '</div>';
+    container.appendChild(card);
+  }
+
+  // ── Busca por ID numérico (ex: 2345678) ───────────────────────────────── //
+  async function buscarPorId(propId) {
+    iniciarLoading();
+    try {
+      const resp = await fetch('/proposicao/' + propId);
+      const data = await resp.json();
+      pararLoading();
+      if (data.encontrado) {
+        mostrarResultadoUnico(data);
+      } else {
+        document.getElementById('results').innerHTML =
+          '<div class="msg"><span class="emoji">🔍</span>' +
+          'ID <strong>' + propId + '</strong> não encontrado no índice.</div>';
+      }
+    } catch (err) {
+      pararLoading();
+      mostrarErro(err.message);
+    }
+  }
+
+  // ── Busca por sigla (ex: PL 1038/2025) ────────────────────────────────── //
+  async function buscarPorSigla(tipo, numero, ano) {
+    iniciarLoading();
+    const label = tipo.toUpperCase() + ' ' + numero + '/' + ano;
+    try {
+      const resp = await fetch(
+        '/resolucao?tipo=' + encodeURIComponent(tipo) +
+        '&numero=' + encodeURIComponent(numero) +
+        '&ano=' + encodeURIComponent(ano)
+      );
+      const data = await resp.json();
+      pararLoading();
+      if (data.encontrado) {
+        mostrarResultadoUnico(data, label);
+      } else {
+        document.getElementById('results').innerHTML =
+          '<div class="msg"><span class="emoji">🔍</span>' +
+          '<strong>' + label + '</strong> não encontrado na API da Câmara.' +
+          (data.erro ? '<br><small>' + data.erro + '</small>' : '') + '</div>';
+      }
+    } catch (err) {
+      pararLoading();
+      mostrarErro(err.message);
+    }
+  }
+
+  // ── Busca principal ────────────────────────────────────────────────────── //
+  async function buscar() {
+    const query = document.getElementById('query-input').value.trim();
+    if (!query) return;
+
+    // Padrão "PL 1038/2025", "PEC 45/2019", etc.
+    const siglMatch = query.match(/^([A-Za-z]+)\\s+(\\d+)\\s*\\/\\s*(\\d{4})$/);
+    if (siglMatch) {
+      buscarPorSigla(siglMatch[1], siglMatch[2], siglMatch[3]);
+      return;
+    }
+
+    // ID numérico puro
+    if (/^\\d+$/.test(query)) {
+      buscarPorId(query);
+      return;
+    }
+
+    // Busca TF-IDF normal
+    const topK = parseInt(document.getElementById('top-k').value, 10);
+    iniciarLoading();
     try {
       const resp = await fetch('/buscar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, top_k: topK }),
       });
       const data = await resp.json();
+      pararLoading();
 
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('btn-search').disabled = false;
-
-      // Stems
       if (data.stems && data.stems.length > 0) {
         document.getElementById('stems-info').innerHTML =
           'Radicais utilizados na busca: ' +
           data.stems.map(s => '<span>' + s + '</span>').join(', ');
       }
 
-      // Header
       if (data.resultados && data.resultados.length > 0) {
         document.getElementById('results-header').innerHTML =
           '<strong>' + data.resultados.length + ' resultado(s)</strong> &nbsp;·&nbsp; ' +
           'Tempo de busca: <strong>' + data.tempo_ms + ' ms</strong>';
 
-        // Cards
         const container = document.getElementById('results');
         data.resultados.forEach(r => {
           const card = document.createElement('a');
@@ -480,10 +601,8 @@ HTML = """
           'Nenhum resultado encontrado. Tente palavras diferentes.</div>';
       }
     } catch (err) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('btn-search').disabled = false;
-      document.getElementById('results').innerHTML =
-        '<div class="msg"><span class="emoji">⚠️</span>Erro na busca: ' + err.message + '</div>';
+      pararLoading();
+      mostrarErro(err.message);
     }
   }
 </script>
@@ -522,10 +641,57 @@ def buscar():
         if not query:
             return jsonify({"resultados": [], "tempo_ms": 0, "stems": []})
 
-        resultados, tempo_ms, stems = motor.buscar(query, top_k=20)
+        top_k = max(1, min(int(corpo.get("top_k", 20)), 100))
+        resultados, tempo_ms, stems = motor.buscar(query, top_k=top_k)
         return jsonify({"resultados": resultados, "tempo_ms": tempo_ms, "stems": stems})
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
+
+@app.route("/proposicao/<prop_id>")
+def proposicao(prop_id):
+    """Busca direta por ID numérico interno da Câmara."""
+    if not motor.carregado:
+        return jsonify({"encontrado": False})
+    doc_id = motor.docs.get(prop_id)
+    if doc_id:
+        return jsonify({
+            "encontrado": True,
+            "prop_id": prop_id,
+            "url": f"https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao={prop_id}",
+        })
+    return jsonify({"encontrado": False})
+
+
+@app.route("/resolucao")
+def resolucao():
+    """Resolve 'PL 1038/2025' → ID interno via API da Câmara."""
+    tipo = request.args.get("tipo", "").strip().upper()
+    numero = request.args.get("numero", "").strip()
+    ano = request.args.get("ano", "").strip()
+    if not tipo or not numero or not ano:
+        return jsonify({"encontrado": False})
+    try:
+        api_url = (
+            "https://dadosabertos.camara.leg.br/api/v2/proposicoes"
+            f"?siglaTipo={tipo}&numero={numero}&ano={ano}&ordem=ASC&ordenarPor=id"
+        )
+        req = urllib.request.Request(api_url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        dados = data.get("dados", [])
+        if not dados:
+            return jsonify({"encontrado": False})
+        prop = dados[0]
+        prop_id = str(prop["id"])
+        return jsonify({
+            "encontrado": True,
+            "prop_id": prop_id,
+            "ementa": prop.get("ementa", ""),
+            "url": f"https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao={prop_id}",
+        })
+    except Exception as e:
+        return jsonify({"encontrado": False, "erro": str(e)})
 
 
 # =========================================================================== #
