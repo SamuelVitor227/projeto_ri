@@ -17,7 +17,10 @@ output_leis/  ──[indexador.py]──>  indice_projetos_lei.json  ──[busc
   `indice_projetos_lei.json`.
 - **`buscador_web.py`** — interface web (Flask) que carrega o índice e responde
   consultas com ranqueamento TF-IDF. Os resultados linkam direto para a ficha de
-  tramitação no site da Câmara.
+  tramitação no site da Câmara. Suporta três modos de busca:
+  - **Texto livre** — pesquisa por palavras-chave com ranking TF-IDF
+  - **ID numérico** — busca direta pela proposição (ex: `2345678`)
+  - **Sigla** — resolve automaticamente via API da Câmara (ex: `PL 1038/2025`, `PEC 45/2019`)
 
 ## Pré-requisitos
 
