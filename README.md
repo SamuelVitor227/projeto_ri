@@ -27,7 +27,7 @@ output_leis/  ──[indexador.py]──>  indice_projetos_lei.json  ──[busc
 - Python 3.8+
 
 ```bash
-pip install flask nltk
+pip install -r requirements.txt
 ```
 
 > Os pacotes do NLTK (`stopwords` e `rslp`) são baixados automaticamente na

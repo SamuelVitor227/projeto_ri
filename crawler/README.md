@@ -22,7 +22,7 @@ os arquivos são salvos na pasta "output_leis" e tem o nome projetoDeLei_{id}
 
 1. Instale o Scrapy: execute o comando
    ```Bash
-     pip install scrapy
+     pip install -r requirements.txt
    ```
 2. Navegue até a página do projeto e rode o comando:
    ```

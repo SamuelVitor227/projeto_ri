@@ -25,3 +25,6 @@ indice_projetos_lei.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Configuração local do Claude Code
+.claude/
